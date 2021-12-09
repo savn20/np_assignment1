@@ -1,8 +1,8 @@
 # Line based TCP Client
 
 ### Todos
-- [ ] Setup connection to reference server `13.53.76.30:5000`  
-- [ ] Send `OK\n` to server
+- [x] Setup connection to reference server `13.53.76.30:5000`  
+- [x] Send `OK\n` to server
 - [ ] Perform operation requested by server
 - [ ] Send Computed Result to the server
 

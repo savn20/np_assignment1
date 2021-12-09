@@ -13,6 +13,7 @@
 // Alternative, pass CFLAGS=-DDEBUG to make, make CFLAGS=-DDEBUG
 #define DEBUG
 #define BUFFER_SIZE 1000
+#define SERVER_VERSION "TEXT TCP 1.0"
 
 // Included to get the support library
 #include <calcLib.h>
@@ -30,6 +31,10 @@ int main(int argc, char *argv[]){
   // *Dstport points to whatever string came after the delimiter. 
 
   char buffer[BUFFER_SIZE];
+  // buffer stores the responses recieved from server
+
+  char *version;
+  // *version will be used to store server version
 
   /* Do magic */
   int port=atoi(Destport);
@@ -92,11 +97,19 @@ int main(int argc, char *argv[]){
 #endif
     exit(1);
   }
+
+  version = strtok(buffer, "\n");
   
-  else{
+  if(strcmp(version, SERVER_VERSION) == 0){
+    send(sockfd, "OK\n", 3, 0);
 #ifdef DEBUG
+    printf("Server: %s\n", version);
     printf("Connected to %s and port %d\n",Desthost,port);
 #endif    
   }
-  
+
+  //TODO: Perform operation
+
+  printf("Closing connection...\n");
+  close(sockfd);
 }

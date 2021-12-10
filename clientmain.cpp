@@ -14,6 +14,8 @@
 #define DEBUG
 #define BUFFER_SIZE 1000
 #define SERVER_VERSION "TEXT TCP 1.0"
+#define ERROR "ERROR"
+#define OK "OK"
 
 // Included to get the support library
 #include <calcLib.h>
@@ -32,6 +34,8 @@ int main(int argc, char *argv[]){
 
   char buffer[BUFFER_SIZE];
   // buffer stores the responses recieved from server
+
+  char *operation=buffer;
 
   char *version;
   // *version will be used to store server version
@@ -108,7 +112,27 @@ int main(int argc, char *argv[]){
 #endif    
   }
 
-  //TODO: Perform operation
+  while(operation != NULL){
+    bytes_recv = recv(sockfd, buffer, BUFFER_SIZE-1, 0);
+    
+    if (bytes_recv == -1) {
+#ifdef DEBUG 
+    printf("Oops! No bytes received, Terminating the program\n");
+#endif
+    exit(1);
+    }
+    
+    operation = strtok(buffer, "\n");
+
+    if(strcmp(operation, ERROR) == 0 || strcmp(operation, OK) == 0){
+      operation = strtok(NULL, "\n");
+      continue;
+    }
+
+    printf("Server: %s\n", operation);
+    //TODO: Compute operation
+    send(sockfd, "OK\n", 3, 0);
+  }
 
   printf("Closing connection...\n");
   close(sockfd);

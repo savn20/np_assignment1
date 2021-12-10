@@ -20,6 +20,14 @@
 // Included to get the support library
 #include <calcLib.h>
 
+void performOperation(char* operation);
+
+int performCalculation(char* op,int a, int b);
+
+float performCalculation(char* op,float a, float b);
+
+char message[BUFFER_SIZE];
+
 int main(int argc, char *argv[]){
 
   /*
@@ -123,17 +131,77 @@ int main(int argc, char *argv[]){
     }
     
     operation = strtok(buffer, "\n");
-
+    printf("Server: %s\n", operation);
+  
     if(strcmp(operation, ERROR) == 0 || strcmp(operation, OK) == 0){
       operation = strtok(NULL, "\n");
       continue;
     }
 
-    printf("Server: %s\n", operation);
-    //TODO: Compute operation
-    send(sockfd, "OK\n", 3, 0);
+    performOperation(operation);
+    send(sockfd, message, strlen(message), 0);
   }
 
   printf("Closing connection...\n");
   close(sockfd);
 }
+
+void performOperation(char* opstring){
+  int count = 0;
+  char *operation, *var1, *var2;
+  char *token = strtok(opstring, " ");   
+  
+  while (token != NULL){
+    switch (count){
+      case 0:
+        operation = token;
+      case 1:
+        var1 = token;
+      case 2:
+        var2 = token;
+    default:
+      break;
+    }
+    token = strtok(NULL, " ");
+    count++;
+  }
+
+
+  if(operation[0] == 'f'){
+    sprintf(message,"%8.8f\n", performCalculation(operation, (float) atof(var1), (float) atof(var2)));
+  }
+  else{
+    sprintf(message,"%d\n", performCalculation(operation, atoi(var1), atoi(var2)));
+  }
+}
+
+int performCalculation(char* operation,int a, int b){
+  if(strcmp(operation, "add") == 0){
+    return a + b;
+  }
+  else if(strcmp(operation, "sub") == 0){
+    return a - b;
+  }
+  else if(strcmp(operation, "mul") == 0){
+    return a * b;
+  }
+  else {
+    return a / b;
+  }
+}
+
+float performCalculation(char* operation,float a, float b){
+  if(strcmp(operation, "fadd") == 0){
+    return a + b;
+  }
+  else if(strcmp(operation, "fsub") == 0){
+    return a - b;
+  }
+  else if(strcmp(operation, "fmul") == 0){
+    return a * b;
+  }
+  else {
+    return a / b;
+  }
+}
+

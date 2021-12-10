@@ -3,8 +3,8 @@
 ### Todos
 - [x] Setup connection to reference server `13.53.76.30:5000`  
 - [x] Send `OK\n` to server
-- [ ] Perform operation requested by server
-- [ ] Send Computed Result to the server
+- [x] Perform operation requested by server
+- [x] Send Computed Result to the server
 
 ### Notes to my self
 - Commit history is important. So save your progress while working

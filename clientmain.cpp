@@ -131,7 +131,10 @@ int main(int argc, char *argv[]){
     }
     
     operation = strtok(buffer, "\n");
+
+#ifdef DEBUG 
     printf("Server: %s\n", operation);
+#endif
   
     if(strcmp(operation, ERROR) == 0 || strcmp(operation, OK) == 0){
       operation = strtok(NULL, "\n");
@@ -139,6 +142,9 @@ int main(int argc, char *argv[]){
     }
 
     performOperation(operation);
+#ifdef DEBUG
+    printf("Calculated: %s", message);
+#endif
     send(sockfd, message, strlen(message), 0);
   }
 

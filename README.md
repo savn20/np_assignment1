@@ -19,9 +19,9 @@
 ### Todos
 - [x] create a server at given `ip` and `port`
 - client management
-    - [ ] handle one client at a time
+    - [x] handle one client at a time
     - [ ] 5 clients should be able to queue for service, the sixth should be rejected
-    - [ ] when client gets connected, respond with "TEXT TCP 1.0n"
+    - [x] when client gets connected, respond with "TEXT TCP 1.0n"
 - task management
     - [ ] generate random assignment to client using calcLib
     - [ ] if the client takes longer than 5s, terminate the client and close the connection

@@ -13,7 +13,7 @@
 
 // comment the DEBUG macro to turn off comments in the console
 #define DEBUG
-#define QUEUE 5
+#define BACKLOG 5
 
 using namespace std;
 
@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
     cerr << "usage: server <ip>:<port>\n"
          << "program terminated due to wrong usage" << endl;
 
-    return -1;
+    exit(-1);
   }
 
   char seperator[] = ":";
@@ -47,6 +47,8 @@ int main(int argc, char *argv[])
   int serverSocket = -1,
       clientSocket = -1,
       acceptMultipleClients = 1;
+
+  printf("server at given host:%s and port:%d\n", serverIp.c_str(), serverPort);
 
   // setting up address metadata
   sockaddr_in serverAddr, clientAddr;
@@ -60,9 +62,9 @@ int main(int argc, char *argv[])
   if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) == -1)
   {
     cerr << "server: failed to create socket\n"
-         << "program terminated while creating socket" << endl;
+         << "program terminated while socket()" << endl;
 
-    return -3;
+    exit(-1);
   }
 
   // flag to accept multiple clients
@@ -70,9 +72,9 @@ int main(int argc, char *argv[])
                  sizeof(int)) < 0)
   {
     cerr << "server: failed to accept multiple connections\n"
-         << "program terminated while setsockopt" << endl;
-    
-    exit(1);
+         << "program terminated while setsockopt()" << endl;
+    close(serverSocket);
+    exit(-1);
   }
 
   // binding socket to ip and port
@@ -80,66 +82,109 @@ int main(int argc, char *argv[])
   {
     close(serverSocket);
     cerr << "error: failed to bind socket\n"
-         << "program terminated while binding socket" << endl;
+         << "program terminated while bind()" << endl;
 
-    return -4;
+    exit(-1);
   }
 
-  if (listen(serverSocket, QUEUE) < 0)
+  if (listen(serverSocket, BACKLOG) < 0)
   {
-    cerr << "error: failed to listen to socket\n";
-    return -5;
+    cerr << "error: failed to listen to socket\n"
+         << "program terminated while listen()" << endl;
+    exit(-1);
   }
 
-  cout << "listening for clients..." << endl;
+  cout << "server is ready, listening for clients..." << endl;
 
-  clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddr, &clientAddrLen);
+  char buffer[80];
 
-  //TODO: handle 5 clients
-  if (clientSocket < 0)
+  for (int i = 0; i < BACKLOG; i++)
   {
-    cerr << "error: can't accept client\n";
-    return -6;
+
+    //TODO: set timeout
+    clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddr, &clientAddrLen);
+    if (clientSocket < 0)
+    {
+      cerr << "error: can't accept client\n"
+           << "program terminated while accept()" << endl;
+      close(serverSocket);
+      exit(-1);
+    }
+
+    cout << "server: new client connected at host: " << inet_ntoa(clientAddr.sin_addr) << " and port: " << ntohs(clientAddr.sin_port) << endl;
+
+    cout << "server: sending version - TEXT TCP 1.0" << endl;
+
+    string message = "TEXT TCP 1.0\n\n";
+
+    // sending the version server accepts
+    if (send(clientSocket, message.c_str(), strlen(message.c_str()), 0) < 0)
+    {
+      cerr << "error: failed to send message to client\n"
+           << "program terminated while send()" << endl;
+      close(clientSocket);
+      exit(-1);
+    }
+
+    // response from server: OK! (in most cases)
+    if ((recv(clientSocket, buffer, sizeof(buffer), 0)) <= 0)
+    {
+      cerr << "error: no bytes rec from client\n"
+           << "program terminated while recv()" << endl;
+      close(serverSocket);
+      close(clientSocket);
+      exit(-1);
+    }
+
+    printf("client: %s\n", buffer);
+
+    //TODO: Assign a random task
+    message = "add 2 3 \n\n";
+
+    // sending the assignment: <operation> <value1> <value2>
+    if (send(clientSocket, message.c_str(), strlen(message.c_str()), 0) <= 0)
+    {
+      cerr << "error: failed to send message to client\n"
+           << "program terminated while send()" << endl;
+      close(serverSocket);
+      close(clientSocket);
+      exit(-1);
+    }
+
+    cout << "server: add 2 3" << endl;
+
+    // result from client
+    if ((recv(clientSocket, buffer, sizeof(buffer), 0)) <= 0)
+    {
+      cerr << "error: no bytes rec from client\n"
+           << "program terminated while recv()" << endl;
+      close(serverSocket);
+      close(clientSocket);
+      exit(-1);
+    }
+
+    printf("client: %s\n", buffer);
+
+    //TODO: Compare the result
+    message = "OK\n\n";
+
+    // sending the result of calculated operation
+    if (send(clientSocket, message.c_str(), strlen(message.c_str()), 0) <= 0)
+    {
+      cerr << "error: failed to send message to client\n"
+           << "program terminated while send()" << endl;
+      close(serverSocket);
+      close(clientSocket);
+      exit(-1);
+    }
+
+    cout << "server: OK" << endl;
+
+    // closing the client bye!!
+    close(clientSocket);
   }
 
-  cout << "client connected at IP: " << inet_ntoa(clientAddr.sin_addr) << " and port: " << ntohs(clientAddr.sin_port) << endl;
-
-  string message = "TEXT TCP 1.0\n\n";
-
-  // sending the version server accepts
-  if (send(clientSocket, message.c_str(), strlen(message.c_str()), 0) < 0)
-  {
-    cout << "can't send" << endl;
-    return -7;
-  }
-
-  char client_message[2000];
-
-  // receiving client's message:
-  if (recv(clientSocket, &client_message, sizeof(client_message), 0) < 0)
-  {
-    cerr << "couldn't receive" << endl;
-    return -8;
-  }
-
-  cout << "message from client: " << client_message << endl;
-
-  // TODO: Assign random task
-  message = "add 2 3\n\n";
-
-  if (send(clientSocket, message.c_str(), strlen(message.c_str()), 0) < 0)
-  {
-    cout << "can't send" << endl;
-    return -7;
-  }
-
-  if (recv(clientSocket, &client_message, sizeof(client_message), 0) < 0)
-  {
-    cerr << "couldn't receive\n";
-    return -8;
-  }
-
-  cout << "message from client: " << client_message << endl;
+  close(serverSocket);
 
   return 0;
 }

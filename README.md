@@ -20,7 +20,7 @@
 - [x] create a server at given `ip` and `port`
 - client management
     - [x] handle one client at a time
-    - [ ] 5 clients should be able to queue for service, the sixth should be rejected
+    - [x] 5 clients should be able to queue for service, the sixth should be rejected
     - [x] when client gets connected, respond with "TEXT TCP 1.0n"
 - task management
     - [ ] generate random assignment to client using calcLib

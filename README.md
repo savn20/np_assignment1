@@ -23,6 +23,6 @@
     - [x] 5 clients should be able to queue for service, the sixth should be rejected
     - [x] when client gets connected, respond with "TEXT TCP 1.0n"
 - task management
-    - [ ] generate random assignment to client using calcLib
-    - [ ] if the client takes longer than 5s, terminate the client and close the connection
-    - [ ] compare the result from client and server and respond OK if correct, ERROR if wrong
+    - [x] generate random assignment to client using calcLib
+    - [x] if the client takes longer than 5s, terminate the client and close the connection
+    - [x] compare the result from client and server and respond OK if correct, ERROR if wrong

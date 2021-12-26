@@ -14,6 +14,7 @@
 // comment the DEBUG macro to turn off comments in the console
 #define DEBUG
 #define BACKLOG 5
+#define BUFFER 1000
 
 using namespace std;
 
@@ -53,6 +54,8 @@ int main(int argc, char *argv[])
   // setting up address metadata
   sockaddr_in serverAddr, clientAddr;
   socklen_t clientAddrLen = sizeof(struct sockaddr_in);
+  timeval timeout;
+  timeout.tv_sec = 5;
 
   serverAddr.sin_family = AF_INET;
   serverAddr.sin_port = htons(serverPort);
@@ -96,12 +99,13 @@ int main(int argc, char *argv[])
 
   cout << "server is ready, listening for clients..." << endl;
 
-  char buffer[80];
+  // buffer to store client message and send server response
+  string response("");
+  char message[BUFFER];
 
   for (int i = 0; i < BACKLOG; i++)
   {
 
-    //TODO: set timeout
     clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddr, &clientAddrLen);
     if (clientSocket < 0)
     {
@@ -111,14 +115,18 @@ int main(int argc, char *argv[])
       exit(-1);
     }
 
+    //set timeout
+    setsockopt(clientSocket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout);
+    setsockopt(clientSocket, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof timeout);
+
     cout << "server: new client connected at host: " << inet_ntoa(clientAddr.sin_addr) << " and port: " << ntohs(clientAddr.sin_port) << endl;
 
     cout << "server: sending version - TEXT TCP 1.0" << endl;
 
-    string message = "TEXT TCP 1.0\n\n";
+    response = "TEXT TCP 1.0\n\n";
 
     // sending the version server accepts
-    if (send(clientSocket, message.c_str(), strlen(message.c_str()), 0) < 0)
+    if (send(clientSocket, response.c_str(), strlen(response.c_str()), 0) < 0)
     {
       cerr << "error: failed to send message to client\n"
            << "program terminated while send()" << endl;
@@ -127,7 +135,7 @@ int main(int argc, char *argv[])
     }
 
     // response from server: OK! (in most cases)
-    if ((recv(clientSocket, buffer, sizeof(buffer), 0)) <= 0)
+    if ((recv(clientSocket, message, sizeof(message), 0)) <= 0)
     {
       cerr << "error: no bytes rec from client\n"
            << "program terminated while recv()" << endl;
@@ -135,14 +143,17 @@ int main(int argc, char *argv[])
       close(clientSocket);
       exit(-1);
     }
+    else
+    {
+      printf("client: %s\n", strtok(message, "\n"));
+    }
 
-    printf("client: %s\n", buffer);
-
-    //TODO: Assign a random task
-    message = "add 2 3 \n\n";
+    calcTask *task = randomTask();
+    
+    response = task->task;
 
     // sending the assignment: <operation> <value1> <value2>
-    if (send(clientSocket, message.c_str(), strlen(message.c_str()), 0) <= 0)
+    if (send(clientSocket, response.c_str(), strlen(response.c_str()), 0) <= 0)
     {
       cerr << "error: failed to send message to client\n"
            << "program terminated while send()" << endl;
@@ -150,11 +161,13 @@ int main(int argc, char *argv[])
       close(clientSocket);
       exit(-1);
     }
-
-    cout << "server: add 2 3" << endl;
+    else
+    {
+      cout << "server: " << strtok(task->task, "\n") << endl;
+    }
 
     // result from client
-    if ((recv(clientSocket, buffer, sizeof(buffer), 0)) <= 0)
+    if ((recv(clientSocket, message, sizeof(message), 0)) <= 0)
     {
       cerr << "error: no bytes rec from client\n"
            << "program terminated while recv()" << endl;
@@ -163,13 +176,36 @@ int main(int argc, char *argv[])
       exit(-1);
     }
 
-    printf("client: %s\n", buffer);
+    printf("client: %s\n", strtok(message, "\n"));
 
-    //TODO: Compare the result
-    message = "OK\n\n";
+    if(response[0] == 'f'){
+      float res = stof(strtok(message, "\n"));
+      res = abs(res - task->fResult);
+      
+      if(res < 0.0001){
+        response = "OK\n";
+        printf("server: OK\n");
+      }
+      else{
+        response = "ERROR\n";
+        printf("server: ERROR\n");
+      }
+    }
+    else{
+      int res = atoi(strtok(message, "\n"));
+      
+      if(res == task->iResult){
+        response = "OK\n";
+        printf("server: OK\n");
+      }
+      else{
+        response = "ERROR\n";
+        printf("server: ERROR\n");
+      }
+    }
 
     // sending the result of calculated operation
-    if (send(clientSocket, message.c_str(), strlen(message.c_str()), 0) <= 0)
+    if (send(clientSocket, response.c_str(), strlen(response.c_str()), 0) <= 0)
     {
       cerr << "error: failed to send message to client\n"
            << "program terminated while send()" << endl;
@@ -177,8 +213,6 @@ int main(int argc, char *argv[])
       close(clientSocket);
       exit(-1);
     }
-
-    cout << "server: OK" << endl;
 
     // closing the client bye!!
     close(clientSocket);

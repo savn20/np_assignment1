@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <string.h>
 
 /* Here we use " as the calcLib.c and calcLib.h files are in the same folder, and are to be BUILT
    to into a library, that will be included in other files. 
@@ -70,4 +71,50 @@ double randomFloat(void){
   return(x);
 };
 
+calcTask *randomTask(){
+   char* arith = randomType();
+   char taskString[100];
+   float fResult;
+   int iResult;
+   
+   calcTask *task = malloc(sizeof(calcTask));
 
+   // float
+   if(arith[0] == 'f'){
+      float f1 = randomFloat();
+      float f2 = randomFloat();
+      if(strcmp(arith,"fadd")==0){
+      fResult=f1+f2;
+    } else if (strcmp(arith, "fsub")==0){
+      fResult=f1-f2;
+    } else if (strcmp(arith, "fmul")==0){
+      fResult=f1*f2;
+    } else if (strcmp(arith, "fdiv")==0){
+      fResult=f1/f2;
+    }
+
+      sprintf(taskString, "%s %8.8f %8.8f\n",arith, f1 ,f2);
+      task->fResult = fResult;
+      task->task = strdup(taskString);
+   }
+   // integer
+   else{
+      int i1 = randomInt();
+      int i2 = randomInt();
+      if(strcmp(arith,"add")==0){
+      iResult=i1+i2;
+    } else if (strcmp(arith, "sub")==0){
+      iResult=i1-i2;
+    } else if (strcmp(arith, "mul")==0){
+      iResult=i1*i2;
+    } else if (strcmp(arith, "div")==0){
+      iResult=i1/i2;
+    }
+
+      sprintf(taskString, "%s %d %d\n",arith, i1 ,i2);
+      task->iResult = iResult;
+      task->task = strdup(taskString);
+   }
+
+   return task;
+}

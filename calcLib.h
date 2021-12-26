@@ -27,7 +27,12 @@ Implementation in calcLib.c
     char *task;
   };
 
+  struct calcResult{
+    char* result;
+  };
+
   typedef struct calcTask calcTask;
+  typedef struct calcResult calcResult;
 
   int initCalcLib(void);                   // Init internal variables to the library, if needed.
   int initCalcLib_seed(unsigned int seed); // Init internal variables to the library, use <seed> for specific variable.
@@ -36,6 +41,7 @@ Implementation in calcLib.c
   int randomInt(void);      // Return a random integer, between 0 and 100.
   double randomFloat(void); // Return a random float between 0.0 and 100.0
   calcTask *randomTask();
+  calcResult* calculateTask(char* message);
 
 #endif
 

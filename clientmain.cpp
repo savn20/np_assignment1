@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <iostream>
 /* You will to add includes here */
 
 #include <unistd.h>
@@ -14,200 +15,144 @@
 #define DEBUG
 #define BUFFER_SIZE 1000
 #define SERVER_VERSION "TEXT TCP 1.0"
-#define ERROR "ERROR"
-#define OK "OK"
 
 // Included to get the support library
 #include <calcLib.h>
 
-void performOperation(char* operation);
+// stores response from server
+char response[BUFFER_SIZE];
 
-int performCalculation(char* op,int a, int b);
+using namespace std;
 
-float performCalculation(char* op,float a, float b);
+int main(int argc, char *argv[]) {
 
-char message[BUFFER_SIZE];
-
-int main(int argc, char *argv[]){
+  // disables debugging when there's no DEBUG macro defined
+#ifndef DEBUG
+  cout.setstate(ios_base::failbit);
+  cerr.setstate(ios_base::failbit);
+#endif
 
   /*
     Read first input, assumes <ip>:<port> syntax, convert into one string (Desthost) and one integer (port). 
      Atm, works only on dotted notation, i.e. IPv4 and DNS. IPv6 does not work if its using ':'. 
   */
-  char delim[]=":";
-  char *Desthost=strtok(argv[1],delim);
-  char *Destport=strtok(NULL,delim);
-  // *Desthost now points to a sting holding whatever came before the delimiter, ':'.
-  // *Dstport points to whatever string came after the delimiter. 
 
-  char buffer[BUFFER_SIZE];
-  // buffer stores the responses recieved from server
+  if (argc != 2)
+  {
+    cerr << "usage: server <ip>:<port>\n"
+         << "program terminated due to wrong usage" << endl;
 
-  char *operation=buffer;
-
-  char *version;
-  // *version will be used to store server version
-
-  /* Do magic */
-  int port=atoi(Destport);
-#ifdef DEBUG 
-  printf("Host %s, and port %d.\n",Desthost,port);
-#endif
-
-  struct addrinfo ip_metadata, *p;
-  // ip_metadata now stores address information needed to communicate with TCP/IP server
-  memset(&ip_metadata, 0, sizeof(ip_metadata));
-  ip_metadata.ai_family   = AF_UNSPEC;
-  ip_metadata.ai_socktype = SOCK_STREAM;
-  ip_metadata.ai_flags    = AI_PASSIVE;
-
-  int addr_meta = getaddrinfo(Desthost, Destport, &ip_metadata, &p);
-  // addr_meta returns the connection status with error code
-  // if error code == 0, then the connection is established
-  if (addr_meta != 0) {
-#ifdef DEBUG
-    printf("Something wrong with address, here's the error code %d:\n",addr_meta);
-    printf("\t%s",gai_strerror(addr_meta));
-#endif
-    return -2;
+    exit(-1);
   }
 
-  if (p == NULL) {
-#ifdef DEBUG
-    printf("No addresses found\n");
-#endif
-    return -3;
-  }
+  char delim[] = ":";
+  char *serverIp = strtok(argv[1], delim);
+  int serverPort = atoi(strtok(NULL, delim));
 
-  int sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-  // sockfd stores the information about incoming connection
-  if (sockfd == -1) {
-#ifdef DEBUG
-    printf("Oops! failed to create socket\n");
-    return -4;
-#endif
-  }
-
-  int socket_connection = connect(sockfd, p->ai_addr, p->ai_addrlen);
-  // connects to the socket specified i.e sockfd
-  if (socket_connection == -1) {
-    close(sockfd);
-#ifdef DEBUG
-  printf("Oops! failed to connect with socket\n");
-#endif
-    return -5;
-  }
-
-#ifdef DEBUG 
-  printf("Establishing Connection to %s...\n",Desthost);
-#endif
-
-  int bytes_recv = recv(sockfd, buffer, BUFFER_SIZE-1, 0);
-  if (bytes_recv == -1) {
-#ifdef DEBUG 
-  printf("Oops! No bytes received, Terminating the program\n");
-#endif
-    exit(1);
-  }
-
-  version = strtok(buffer, "\n");
+  int socketConnection = -1;
   
-  if(strcmp(version, SERVER_VERSION) == 0){
-    send(sockfd, "OK\n", 3, 0);
-#ifdef DEBUG
-    printf("Server: %s\n", version);
-    printf("Connected to %s and port %d\n",Desthost,port);
-#endif    
+  sockaddr_in serverAddress;
+  serverAddress.sin_family = AF_INET;
+  serverAddress.sin_port = htons(serverPort);
+  serverAddress.sin_addr.s_addr = inet_addr(serverIp);
+
+  timeval timeout;
+  timeout.tv_sec = 5;
+
+  // creating socket
+  if ((socketConnection = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+  {
+    cerr << "client: failed to create socket\n"
+         << "program terminated while socket()" << endl;
+
+    exit(-1);
   }
 
-  while(operation != NULL){
-    bytes_recv = recv(sockfd, buffer, BUFFER_SIZE-1, 0);
-    
-    if (bytes_recv == -1) {
-#ifdef DEBUG 
-    printf("Oops! No bytes received, Terminating the program\n");
-#endif
-    exit(1);
-    }
-    
-    operation = strtok(buffer, "\n");
+  cout << "establishing connection to given host:" << serverIp << " and port: " << serverPort << endl;
 
-#ifdef DEBUG 
-    printf("Server: %s\n", operation);
-#endif
+  // connecting to socket to ip and port
+  if (connect(socketConnection, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
+  {
+    close(socketConnection);
+    cerr << "error: failed to connect to socket\n"
+         << "program terminated while connect()" << endl;
+
+    exit(-1);
+  }
+
+  setsockopt(socketConnection, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout);
+  setsockopt(socketConnection, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof timeout);
+
+  cout << "client: socket created, waiting for server response..." << endl;
+
+  /************************************/
+  /*  getting verison from server    */
+  /**********************************/
+  if ((recv(socketConnection, response, sizeof(response), 0)) <= 0){
+    cerr << "error: no bytes rec from server\n"
+         << "program terminated while recv()" << endl;
+    close(socketConnection);
+    exit(-1);
+  }
+
+  cout << "server: ", strtok(response, "\n");
   
-    if(strcmp(operation, ERROR) == 0 || strcmp(operation, OK) == 0){
-      operation = strtok(NULL, "\n");
-      continue;
+  if(strcmp(strtok(response, "\n"), SERVER_VERSION) == 0){
+        
+    if (send(socketConnection, "OK\n", 3, 0) < 0)
+    {
+      cerr << "error: failed to send message\n"
+           << "program terminated while send()" << endl;
+      close(socketConnection);
+      exit(-1);
     }
 
-    performOperation(operation);
-#ifdef DEBUG
-    printf("Calculated: %s", message);
-#endif
-    send(sockfd, message, strlen(message), 0);
-  }
-
-  printf("Closing connection...\n");
-  close(sockfd);
-}
-
-void performOperation(char* opstring){
-  int count = 0;
-  char *operation, *var1, *var2;
-  char *token = strtok(opstring, " ");   
-  
-  while (token != NULL){
-    switch (count){
-      case 0:
-        operation = token;
-      case 1:
-        var1 = token;
-      case 2:
-        var2 = token;
-    default:
-      break;
-    }
-    token = strtok(NULL, " ");
-    count++;
-  }
-
-
-  if(operation[0] == 'f'){
-    sprintf(message,"%8.8f\n", performCalculation(operation, (float) atof(var1), (float) atof(var2)));
+    printf("connected to %s and port %d\n",serverIp,serverPort);
   }
   else{
-    sprintf(message,"%d\n", performCalculation(operation, atoi(var1), atoi(var2)));
+    printf("the version the server operates is invalid: %s\n",response);
+    exit(-1);
   }
-}
 
-int performCalculation(char* operation,int a, int b){
-  if(strcmp(operation, "add") == 0){
-    return a + b;
+  /*************************************/
+  /*  server gives task to perform    */
+  /***********************************/
+  if ((recv(socketConnection, response, sizeof(response), 0)) <= 0){
+    cerr << "error: no bytes rec from server\n"
+         << "program terminated while recv()" << endl;
+    close(socketConnection);
+    exit(-1);
   }
-  else if(strcmp(operation, "sub") == 0){
-    return a - b;
-  }
-  else if(strcmp(operation, "mul") == 0){
-    return a * b;
-  }
-  else {
-    return a / b;
-  }
-}
 
-float performCalculation(char* operation,float a, float b){
-  if(strcmp(operation, "fadd") == 0){
-    return a + b;
-  }
-  else if(strcmp(operation, "fsub") == 0){
-    return a - b;
-  }
-  else if(strcmp(operation, "fmul") == 0){
-    return a * b;
-  }
-  else {
-    return a / b;
-  }
-}
+  printf("server: %s\n", strtok(response, "\n"));
 
+  auto result = calculateTask(strtok(response, "\n"));
+
+  if (send(socketConnection, result->result, sizeof(result->result), 0) < 0)
+  {
+    cerr << "error: failed to send message\n"
+         << "program terminated while send()" << endl;
+    close(socketConnection);
+    exit(-1);
+  }
+
+  printf("client: calculated %s", result->result);
+
+  /*************************************/
+  /*  server verifies the result      */
+  /***********************************/
+  if ((recv(socketConnection, response, sizeof(response), 0)) <= 0){
+    cerr << "error: no bytes rec from server\n"
+         << "program terminated while recv()" << endl;
+    close(socketConnection);
+    exit(-1);
+  }
+
+  printf("server: %s\n", strtok(response, "\n"));
+  
+  cout << "closing connection..." << endl;
+
+  close(socketConnection);
+
+  return 0;
+}

@@ -144,13 +144,13 @@ calcResult *calculateTask(char *task)
   char operation[5], val1[20], val2[20];
   sscanf(task, "%s %s %s", operation, val1, val2);
 
-  char taskString[100];
+  char taskString[150];
 
   if (operation[0] == 'f')
   {
-    float f1 = atof(val1);
-    float f2 = atof(val2);
-    float fResult;
+    double f1 = atof(val1);
+    double f2 = atof(val2);
+    double fResult;
     
     if (strcmp(operation, "fadd") == 0) {
       fResult = f1 + f2;
@@ -165,7 +165,7 @@ calcResult *calculateTask(char *task)
       fResult = f1 / f2;
     }
 
-    sprintf(taskString, "%8.8f\n", fResult);
+    sprintf(taskString, "%8.8g\n", fResult);
   }
   else
   {

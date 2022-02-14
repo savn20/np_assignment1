@@ -2,7 +2,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <iostream>
-/* You will to add includes here */
 
 #include <unistd.h>
 #include <arpa/inet.h>
@@ -10,22 +9,22 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-// Enable if you want debugging to be printed, see examble below.
-// Alternative, pass CFLAGS=-DDEBUG to make, make CFLAGS=-DDEBUG
-#define DEBUG
-#define BUFFER_SIZE 1000
-#define SERVER_VERSION "TEXT TCP 1.0"
-
 // Included to get the support library
 #include <calcLib.h>
 
-// stores response from server
-char response[BUFFER_SIZE];
+// Enable if you want debugging to be printed, see examble below.
+// Alternative, pass CFLAGS=-DDEBUG to make, make CFLAGS=-DDEBUG
+#define DEBUG
+#define MAXDATASIZE 1400
+#define SOCKET_FAILURE -1
+#define SERVER_VERSION "TEXT TCP 1.0\n\n"
 
 using namespace std;
 
-int main(int argc, char *argv[]) {
+void *parseSockaddress(struct sockaddr *sa);
+void verify(int hasError);
 
+int main(int argc, char *argv[]) {
   // disables debugging when there's no DEBUG macro defined
 #ifndef DEBUG
   cout.setstate(ios_base::failbit);
@@ -47,112 +46,101 @@ int main(int argc, char *argv[]) {
 
   char delim[] = ":";
   char *serverIp = strtok(argv[1], delim);
-  int serverPort = atoi(strtok(NULL, delim));
+  char *serverPort = strtok(NULL, delim);
 
-  int socketConnection = -1;
-  
-  sockaddr_in serverAddress;
-  serverAddress.sin_family = AF_INET;
-  serverAddress.sin_port = htons(serverPort);
-  serverAddress.sin_addr.s_addr = inet_addr(serverIp);
+  int sockFd, rv, byteSize;
+	struct addrinfo hints, *servinfo, *ptr;
+	char buffer[MAXDATASIZE];
+	char s[INET6_ADDRSTRLEN];
 
-  timeval timeout;
-  timeout.tv_sec = 5;
+  memset(&hints, 0, sizeof hints);
 
+  /******************/
+  /* server setup  */
+  /****************/
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+
+  verify((rv = getaddrinfo(serverIp, serverPort, &hints, &servinfo)) != 0);
+
+	for(ptr = servinfo; ptr != NULL; ptr = ptr->ai_next) {
   // creating socket
-  if ((socketConnection = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-  {
-    cerr << "client: failed to create socket\n"
-         << "program terminated while socket()" << endl;
+		if((sockFd = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol)) == -1) {
+			cerr << "talker: socket\n";
+			continue;
+		}
 
+		break;
+	}
+
+  if (ptr == NULL) {
+		cerr << "talker: failed to create socket\n";
     exit(-1);
-  }
+	}
 
-  cout << "establishing connection to given host:" << serverIp << " and port: " << serverPort << endl;
+  // connecting to established socket
+  verify(connect(sockFd,ptr->ai_addr, ptr->ai_addrlen));
 
-  // connecting to socket to ip and port
-  if (connect(socketConnection, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
-  {
-    close(socketConnection);
-    cerr << "error: failed to connect to socket\n"
-         << "program terminated while connect()" << endl;
-
-    exit(-1);
-  }
-
-  setsockopt(socketConnection, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout);
-  setsockopt(socketConnection, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof timeout);
-
-  cout << "client: socket created, waiting for server response..." << endl;
+  inet_ntop(ptr->ai_family, parseSockaddress((struct sockaddr *)ptr->ai_addr),
+		  s, sizeof s);
+	
+  printf("Host %s and port %s\n", s, serverPort);
+	freeaddrinfo(servinfo);
 
   /************************************/
   /*  getting verison from server    */
   /**********************************/
-  if ((recv(socketConnection, response, sizeof(response), 0)) <= 0){
-    cerr << "error: no bytes rec from server\n"
-         << "program terminated while recv()" << endl;
-    close(socketConnection);
-    exit(-1);
+  verify(byteSize = recv(sockFd, buffer, MAXDATASIZE-1, 0));
+  buffer[byteSize] = '\0';
+	
+  cout << "Server running with version: " << buffer;
+
+  if(strcmp(buffer, SERVER_VERSION) != 0){
+    cerr << "invalid version\n";
   }
 
-  cout << "server: ", strtok(response, "\n");
-  
-  if(strcmp(strtok(response, "\n"), SERVER_VERSION) == 0){
-        
-    if (send(socketConnection, "OK\n", 3, 0) < 0)
-    {
-      cerr << "error: failed to send message\n"
-           << "program terminated while send()" << endl;
-      close(socketConnection);
-      exit(-1);
-    }
-
-    printf("connected to %s and port %d\n",serverIp,serverPort);
-  }
-  else{
-    printf("the version the server operates is invalid: %s\n",response);
-    exit(-1);
-  }
+  verify(send(sockFd, "OK\n", 3, 0));
+  cout << "connected to " << s << ":" << serverPort << endl;
 
   /*************************************/
   /*  server gives task to perform    */
   /***********************************/
-  if ((recv(socketConnection, response, sizeof(response), 0)) <= 0){
-    cerr << "error: no bytes rec from server\n"
-         << "program terminated while recv()" << endl;
-    close(socketConnection);
-    exit(-1);
-  }
+  verify(byteSize = recv(sockFd, buffer, MAXDATASIZE-1, 0));
+  buffer[byteSize] = '\0';
 
-  printf("server: %s\n", strtok(response, "\n"));
+  printf("ASSIGNMENT: %s\n", buffer);
 
-  auto result = calculateTask(strtok(response, "\n"));
+  auto result = calculateTask(strtok(buffer, "\n"));
+  cout << "Calculated the result to " << result->result;
 
-  if (send(socketConnection, result->result, sizeof(result->result), 0) < 0)
-  {
-    cerr << "error: failed to send message\n"
-         << "program terminated while send()" << endl;
-    close(socketConnection);
-    exit(-1);
-  }
+  verify(send(sockFd, result->result, strlen(result->result), 0));
 
-  printf("client: calculated %s", result->result);
+  verify(byteSize = recv(sockFd, buffer, MAXDATASIZE-1, 0));
+  buffer[byteSize] = '\0';
 
-  /*************************************/
-  /*  server verifies the result      */
-  /***********************************/
-  if ((recv(socketConnection, response, sizeof(response), 0)) <= 0){
-    cerr << "error: no bytes rec from server\n"
-         << "program terminated while recv()" << endl;
-    close(socketConnection);
-    exit(-1);
-  }
-
-  printf("server: %s\n", strtok(response, "\n"));
   
-  cout << "closing connection..." << endl;
+  if(strcmp(buffer, "OK\n") != 0){
+    printf("%s", buffer);
+    close(sockFd);
+    exit(-1);
+  }
+  
+  printf("OK (myresult=%s)\n", strtok(result->result, "\n"));
 
-  close(socketConnection);
-
+  close(sockFd);
   return 0;
+}
+
+void verify(int hasError) {
+  if (hasError == SOCKET_FAILURE) {
+    cerr << "error: something went wrong dealing with sockets\n";
+    exit(-1);
+  }
+}
+
+void *parseSockaddress(struct sockaddr *sa) {
+    if (sa->sa_family == AF_INET)
+        return &(((struct sockaddr_in*)sa)->sin_addr);
+    
+    return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }

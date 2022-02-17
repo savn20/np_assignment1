@@ -13,26 +13,84 @@
 
 // comment the DEBUG macro to turn off comments in the console
 #define DEBUG
+#define MAXDATASIZE 1400
 #define BACKLOG 5
-#define BUFFER 1000
+#define SERVER_VERSION "TEXT TCP 1.0\n\n"
 
 using namespace std;
 
-int main(int argc, char *argv[])
-{
-  // disables debugging when there's no DEBUG macro defined
+int totalClients = 0;
+
+void serveClient(int clientFd){
+  char *readBuffer = (char *)malloc(MAXDATASIZE);
+  char *writeBuffer = (char *)malloc(MAXDATASIZE);
+  int bytes = 0;
+
+  cout << "Im client " << totalClients << "\n";
+  
+  /* sending version */
+  printf("server: sending version 1.0\n");
+  writeBuffer = "TEXT TCP 1.0\n\n";
+  verify(send(clientFd, writeBuffer, strlen(writeBuffer), 0));
+  
+
+  verify(bytes = recv(clientFd, readBuffer, MAXDATASIZE, 0));
+  readBuffer[bytes] = '\0';
+  printf("client: %s\n", readBuffer);
+
+  /* task */
+  calcTask *task = randomTask();
+  printf("server: %s", task->task);
+  writeBuffer = task->task;
+  verify(send(clientFd,  writeBuffer, strlen(writeBuffer), 0));
+
+  verify(recv(clientFd, readBuffer, MAXDATASIZE, 0));
+  printf("client: %s\n", strtok(readBuffer, "\n"));
+
+  if (writeBuffer[0] == 'f') {
+      double res = stod(strtok(readBuffer, "\n"));
+      res = abs(res - task->fResult);
+
+      if (res < 0.0001) {
+        writeBuffer = "OK\n";
+        printf("server: OK\n");
+      }
+      else {
+        writeBuffer = "ERROR\n";
+        printf("server: ERROR\n");
+      }
+  }
+  
+  else {
+    int res = atoi(strtok(readBuffer, "\n"));
+
+    if (res == task->iResult) {
+      writeBuffer = "OK\n";
+      printf("server: OK\n");
+    }
+    else
+    {
+      writeBuffer = "ERROR\n";
+      printf("server: ERROR\n");
+    }
+  }
+
+  verify(send(clientFd, writeBuffer, strlen(writeBuffer), 0));
+  free(writeBuffer);
+  free(readBuffer);
+  return;
+}
+
+int main(int argc, char *argv[]) {
+
+  /* disables debugging if DEBUG is not defined */
 #ifndef DEBUG
   cout.setstate(ios_base::failbit);
   cerr.setstate(ios_base::failbit);
 #endif
 
-  /*
-   * parses command line input to <ip>:<port>
-   * terminates program if there's mismatch
-   */
-
-  if (argc != 2)
-  {
+  /* parses arguments to <ip>:<port> terminates program if there's mismatch */
+  if (argc != 2) {
     cerr << "usage: server <ip>:<port>\n"
          << "program terminated due to wrong usage" << endl;
 
@@ -40,185 +98,65 @@ int main(int argc, char *argv[])
   }
 
   char seperator[] = ":";
+  char cli[INET6_ADDRSTRLEN]; 
   string serverIp = strtok(argv[1], seperator);
   string destPort = strtok(NULL, seperator);
 
   int serverPort = atoi(destPort.c_str());
+  int listenFd = -1, // for server socket
+      acceptFd = -1, // for client socket
+      pid;
 
-  int serverSocket = -1,
-      clientSocket = -1,
-      acceptMultipleClients = 1;
+  struct sockaddr_in serverAddress; // server receive on this address
+  struct sockaddr_in clientAddress; // server sends to client on this address
 
-  printf("server at given host:%s and port:%d\n", serverIp.c_str(), serverPort);
-
-  // setting up address metadata
-  sockaddr_in serverAddr, clientAddr;
-  socklen_t clientAddrLen = sizeof(struct sockaddr_in);
   timeval timeout;
   timeout.tv_sec = 5;
 
-  serverAddr.sin_family = AF_INET;
-  serverAddr.sin_port = htons(serverPort);
-  serverAddr.sin_addr.s_addr = inet_addr(serverIp.c_str());
+  verify(listenFd = socket(AF_INET, SOCK_STREAM, 0));
 
-  // creating socket
-  if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-  {
-    cerr << "server: failed to create socket\n"
-         << "program terminated while socket()" << endl;
+  /* initialize the socket addresses */
+  memset(&serverAddress, 0, sizeof(serverAddress));
+  serverAddress.sin_family = AF_INET;
+  serverAddress.sin_port = htons(serverPort);
+  serverAddress.sin_addr.s_addr = inet_addr(serverIp.c_str());
 
-    exit(-1);
-  }
+  socklen_t clientAddressLength = sizeof(struct sockaddr_in);
 
-  // flag to accept multiple clients
-  if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &acceptMultipleClients,
-                 sizeof(int)) < 0)
-  {
-    cerr << "server: failed to accept multiple connections\n"
-         << "program terminated while setsockopt()" << endl;
-    close(serverSocket);
-    exit(-1);
-  }
+  /* bind the socket with the server address and port */
+  verify(bind(listenFd, (struct sockaddr *)&serverAddress, sizeof(serverAddress)));
 
-  // binding socket to ip and port
-  if (bind(serverSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0)
-  {
-    close(serverSocket);
-    cerr << "error: failed to bind socket\n"
-         << "program terminated while bind()" << endl;
+  /* listen for connection from client */
+  verify(listen(listenFd, BACKLOG));
 
-    exit(-1);
-  }
-
-  if (listen(serverSocket, BACKLOG) < 0)
-  {
-    cerr << "error: failed to listen to socket\n"
-         << "program terminated while listen()" << endl;
-    exit(-1);
-  }
-
-  cout << "server is ready, listening for clients..." << endl;
-
-  // buffer to store client message and send server response
-  string response("");
-  char message[BUFFER];
-
-  for (int i = 0; i < BACKLOG; i++)
-  {
-
-    clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddr, &clientAddrLen);
-    if (clientSocket < 0)
-    {
-      cerr << "error: can't accept client\n"
-           << "program terminated while accept()" << endl;
-      close(serverSocket);
-      exit(-1);
-    }
-
-    //set timeout
-    setsockopt(clientSocket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout);
-    setsockopt(clientSocket, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof timeout);
-
-    cout << "server: new client connected at host: " << inet_ntoa(clientAddr.sin_addr) << " and port: " << ntohs(clientAddr.sin_port) << endl;
-
-    cout << "server: sending version - TEXT TCP 1.0" << endl;
-
-    response = "TEXT TCP 1.0\n\n";
-
-    // sending the version server accepts
-    if (send(clientSocket, response.c_str(), strlen(response.c_str()), 0) < 0)
-    {
-      cerr << "error: failed to send message to client\n"
-           << "program terminated while send()" << endl;
-      close(clientSocket);
-      exit(-1);
-    }
-
-    // response from server: OK! (in most cases)
-    if ((recv(clientSocket, message, sizeof(message), 0)) <= 0)
-    {
-      cerr << "error: no bytes rec from client\n"
-           << "program terminated while recv()" << endl;
-      close(serverSocket);
-      close(clientSocket);
-      exit(-1);
-    }
-    else
-    {
-      printf("client: %s\n", strtok(message, "\n"));
-    }
-
-    calcTask *task = randomTask();
+  while (1) {
+    // parent process waiting to accept a new connection
+    cout << "\n*****server waiting for new client connection:*****\n";
+    clientAddressLength = sizeof(clientAddress);
+    acceptFd = accept(listenFd, (struct sockaddr *)&clientAddress, &clientAddressLength);
+    totalClients++;
     
-    response = task->task;
+    cout << "accept = " << acceptFd << " listenFd = " << listenFd << endl;
 
-    // sending the assignment: <operation> <value1> <value2>
-    if (send(clientSocket, response.c_str(), strlen(response.c_str()), 0) <= 0)
-    {
-      cerr << "error: failed to send message to client\n"
-           << "program terminated while send()" << endl;
-      close(serverSocket);
-      close(clientSocket);
-      exit(-1);
-    }
-    else
-    {
-      cout << "server: " << strtok(task->task, "\n") << endl;
-    }
+    // set timeout
+    setsockopt(acceptFd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout);
+    setsockopt(acceptFd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof timeout);
 
-    // result from client
-    if ((recv(clientSocket, message, sizeof(message), 0)) <= 0)
-    {
-      cerr << "error: no bytes rec from client\n"
-           << "program terminated while recv()" << endl;
-      close(serverSocket);
-      close(clientSocket);
-      exit(-1);
-    }
-
-    printf("client: %s\n", strtok(message, "\n"));
-
-    if(response[0] == 'f'){
-      float res = stof(strtok(message, "\n"));
-      res = abs(res - task->fResult);
-      
-      if(res < 0.0001){
-        response = "OK\n";
-        printf("server: OK\n");
-      }
-      else{
-        response = "ERROR\n";
-        printf("server: ERROR\n");
-      }
-    }
-    else{
-      int res = atoi(strtok(message, "\n"));
-      
-      if(res == task->iResult){
-        response = "OK\n";
-        printf("server: OK\n");
-      }
-      else{
-        response = "ERROR\n";
-        printf("server: ERROR\n");
-      }
-    }
-
-    // sending the result of calculated operation
-    if (send(clientSocket, response.c_str(), strlen(response.c_str()), 0) <= 0)
-    {
-      cerr << "error: failed to send message to client\n"
-           << "program terminated while send()" << endl;
-      close(serverSocket);
-      close(clientSocket);
-      exit(-1);
-    }
-
-    // closing the client bye!!
-    close(clientSocket);
-  }
-
-  close(serverSocket);
+    /* child process is created for serving each new clients */
+    pid = fork();
+    
+    if(pid == 0) {
+      close(listenFd); // sock is closed BY child
+      getIpAddress((struct sockaddr *)&clientAddress, cli, 1);
+      cout << "client connection from port: " << ntohs(clientAddress.sin_port) << endl;
+      serveClient(acceptFd);
+      close(acceptFd);
+      exit(0);
+    } 
+    
+    cout << "Parent, close acceptFd().\n";
+    close(acceptFd); // sock is closed BY PARENT
+  } // close exterior while
 
   return 0;
 }

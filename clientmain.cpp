@@ -15,14 +15,13 @@
 // Enable if you want debugging to be printed, see examble below.
 // Alternative, pass CFLAGS=-DDEBUG to make, make CFLAGS=-DDEBUG
 #define DEBUG
+#define DELAY
 #define MAXDATASIZE 1400
-#define SOCKET_FAILURE -1
 #define SERVER_VERSION "TEXT TCP 1.0\n\n"
 
 using namespace std;
 
 void *parseSockaddress(struct sockaddr *sa);
-void verify(int hasError);
 
 int main(int argc, char *argv[]) {
   // disables debugging when there's no DEBUG macro defined
@@ -64,7 +63,7 @@ int main(int argc, char *argv[]) {
   verify((rv = getaddrinfo(serverIp, serverPort, &hints, &servinfo)) != 0);
 
 	for(ptr = servinfo; ptr != NULL; ptr = ptr->ai_next) {
-  // creating socket
+    // creating socket
 		if((sockFd = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol)) == -1) {
 			cerr << "talker: socket\n";
 			continue;
@@ -81,7 +80,7 @@ int main(int argc, char *argv[]) {
   // connecting to established socket
   verify(connect(sockFd,ptr->ai_addr, ptr->ai_addrlen));
 
-  inet_ntop(ptr->ai_family, parseSockaddress((struct sockaddr *)ptr->ai_addr),
+  inet_ntop(ptr->ai_family, getSocketAddress((struct sockaddr *)ptr->ai_addr),
 		  s, sizeof s);
 	
   printf("Host %s and port %s\n", s, serverPort);
@@ -99,6 +98,7 @@ int main(int argc, char *argv[]) {
     cerr << "invalid version\n";
   }
 
+  printf("Sending OK\n");
   verify(send(sockFd, "OK\n", 3, 0));
   cout << "connected to " << s << ":" << serverPort << endl;
 
@@ -112,6 +112,10 @@ int main(int argc, char *argv[]) {
 
   auto result = calculateTask(strtok(buffer, "\n"));
   cout << "Calculated the result to " << result->result;
+
+#ifdef DELAY
+  sleep(10);
+#endif
 
   verify(send(sockFd, result->result, strlen(result->result), 0));
 
@@ -129,18 +133,4 @@ int main(int argc, char *argv[]) {
 
   close(sockFd);
   return 0;
-}
-
-void verify(int hasError) {
-  if (hasError == SOCKET_FAILURE) {
-    cerr << "error: something went wrong dealing with sockets\n";
-    exit(-1);
-  }
-}
-
-void *parseSockaddress(struct sockaddr *sa) {
-    if (sa->sa_family == AF_INET)
-        return &(((struct sockaddr_in*)sa)->sin_addr);
-    
-    return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }

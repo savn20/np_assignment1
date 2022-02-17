@@ -23,7 +23,7 @@ Implementation in calcLib.c
   struct calcTask
   {
     int iResult;
-    float fResult;
+    double fResult;
     char *task;
   };
 
@@ -42,7 +42,9 @@ Implementation in calcLib.c
   double randomFloat(void); // Return a random float between 0.0 and 100.0
   calcTask *randomTask();
   calcResult* calculateTask(char* message);
-
+  void verify(int hasError);
+  void *getSocketAddress(struct sockaddr *sa);
+  char *getIpAddress(const struct sockaddr *sa, char *s, size_t maxlen);
 #endif
 
 #ifdef __cplusplus

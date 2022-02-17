@@ -13,8 +13,6 @@
 */
 #include "calcLib.h"
 
-#define SOCKET_FAILURE -1
-
 /* array of char* that points to char arrays.  */
 char *arith[] = {"add", "div", "mul", "fsub", "fadd", "fdiv", "fmul", "fsub"};
 

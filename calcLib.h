@@ -20,6 +20,8 @@ Implementation in calcLib.c
 
 */
 
+#define SOCKET_FAILURE -1
+
   struct calcTask
   {
     int iResult;

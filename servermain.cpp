@@ -21,6 +21,21 @@ using namespace std;
 
 int totalClients = 0;
 
+void handleTimeout(int hasError, int sockFd){
+  if (hasError == SOCKET_FAILURE) {
+    perror("error: closing on timeout");
+    
+    char *errorMsg = (char *)malloc(MAXDATASIZE);
+    errorMsg = strdup("ERROR TO\n");
+
+    send(sockFd,&errorMsg,strlen(errorMsg),0);
+    close(sockFd);
+    free(errorMsg);
+    
+    exit(-1);
+  }
+}
+
 void serveClient(int clientFd){
   char *readBuffer = (char *)malloc(MAXDATASIZE);
   char *writeBuffer = (char *)malloc(MAXDATASIZE);
@@ -30,11 +45,10 @@ void serveClient(int clientFd){
   
   /* sending version */
   printf("server: sending version 1.0\n");
-  writeBuffer = "TEXT TCP 1.0\n\n";
+  writeBuffer = strdup("TEXT TCP 1.0\n\n");
   verify(send(clientFd, writeBuffer, strlen(writeBuffer), 0));
   
-
-  verify(bytes = recv(clientFd, readBuffer, MAXDATASIZE, 0));
+  handleTimeout(bytes = recv(clientFd, readBuffer, MAXDATASIZE, 0), clientFd);
   readBuffer[bytes] = '\0';
   printf("client: %s\n", readBuffer);
 
@@ -44,7 +58,7 @@ void serveClient(int clientFd){
   writeBuffer = task->task;
   verify(send(clientFd,  writeBuffer, strlen(writeBuffer), 0));
 
-  verify(recv(clientFd, readBuffer, MAXDATASIZE, 0));
+  handleTimeout(recv(clientFd, readBuffer, MAXDATASIZE, 0), clientFd);
   printf("client: %s\n", strtok(readBuffer, "\n"));
 
   if (writeBuffer[0] == 'f') {
@@ -52,11 +66,11 @@ void serveClient(int clientFd){
       res = abs(res - task->fResult);
 
       if (res < 0.0001) {
-        writeBuffer = "OK\n";
+        writeBuffer = strdup("OK\n");
         printf("server: OK\n");
       }
       else {
-        writeBuffer = "ERROR\n";
+        writeBuffer = strdup("ERROR\n");
         printf("server: ERROR\n");
       }
   }
@@ -65,12 +79,12 @@ void serveClient(int clientFd){
     int res = atoi(strtok(readBuffer, "\n"));
 
     if (res == task->iResult) {
-      writeBuffer = "OK\n";
+      writeBuffer = strdup("OK\n");
       printf("server: OK\n");
     }
     else
     {
-      writeBuffer = "ERROR\n";
+      writeBuffer = strdup("ERROR\n");
       printf("server: ERROR\n");
     }
   }
@@ -105,6 +119,7 @@ int main(int argc, char *argv[]) {
   int serverPort = atoi(destPort.c_str());
   int listenFd = -1, // for server socket
       acceptFd = -1, // for client socket
+      reuseAddress = 1,
       pid;
 
   struct sockaddr_in serverAddress; // server receive on this address
@@ -112,6 +127,7 @@ int main(int argc, char *argv[]) {
 
   timeval timeout;
   timeout.tv_sec = 5;
+  timeout.tv_usec = 0;
 
   verify(listenFd = socket(AF_INET, SOCK_STREAM, 0));
 
@@ -123,6 +139,9 @@ int main(int argc, char *argv[]) {
 
   socklen_t clientAddressLength = sizeof(struct sockaddr_in);
 
+  /* bind the socket with the server address and port */
+  verify(setsockopt(listenFd, SOL_SOCKET, SO_REUSEADDR, &reuseAddress, sizeof(int)));
+  
   /* bind the socket with the server address and port */
   verify(bind(listenFd, (struct sockaddr *)&serverAddress, sizeof(serverAddress)));
 
@@ -148,7 +167,7 @@ int main(int argc, char *argv[]) {
     if(pid == 0) {
       close(listenFd); // sock is closed BY child
       getIpAddress((struct sockaddr *)&clientAddress, cli, 1);
-      cout << "client connection from port: " << ntohs(clientAddress.sin_port) << endl;
+      cout << "client connection from host: " << cli << " port: " << ntohs(clientAddress.sin_port) << endl;
       serveClient(acceptFd);
       close(acceptFd);
       exit(0);

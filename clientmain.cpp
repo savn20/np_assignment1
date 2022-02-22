@@ -15,7 +15,8 @@
 // Enable if you want debugging to be printed, see examble below.
 // Alternative, pass CFLAGS=-DDEBUG to make, make CFLAGS=-DDEBUG
 #define DEBUG
-#define DELAY
+// Remove comment to add 10s delay to client
+// #define DELAY
 #define MAXDATASIZE 1400
 #define SERVER_VERSION "TEXT TCP 1.0\n\n"
 
@@ -52,6 +53,10 @@ int main(int argc, char *argv[]) {
 	char buffer[MAXDATASIZE];
 	char s[INET6_ADDRSTRLEN];
 
+  timeval timeout;
+  timeout.tv_sec = 5;
+  timeout.tv_usec = 0;
+
   memset(&hints, 0, sizeof hints);
 
   /******************/
@@ -86,6 +91,9 @@ int main(int argc, char *argv[]) {
   printf("Host %s and port %s\n", s, serverPort);
 	freeaddrinfo(servinfo);
 
+  setsockopt(sockFd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof timeout);
+
+
   /************************************/
   /*  getting verison from server    */
   /**********************************/
@@ -113,7 +121,7 @@ int main(int argc, char *argv[]) {
   auto result = calculateTask(strtok(buffer, "\n"));
   cout << "Calculated the result to " << result->result;
 
-#ifdef DELAY
+#ifndef DELAY
   sleep(10);
 #endif
 
@@ -122,9 +130,14 @@ int main(int argc, char *argv[]) {
   verify(byteSize = recv(sockFd, buffer, MAXDATASIZE-1, 0));
   buffer[byteSize] = '\0';
 
-  
   if(strcmp(buffer, "OK\n") != 0){
-    printf("%s", buffer);
+    if(strcmp(buffer, "ERROR\n") != 0){
+      printf("ERROR TO\n");
+    }
+    else{
+      printf("%s", buffer);
+    }
+
     close(sockFd);
     exit(-1);
   }

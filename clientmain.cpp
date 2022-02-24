@@ -22,8 +22,6 @@
 
 using namespace std;
 
-void *parseSockaddress(struct sockaddr *sa);
-
 int main(int argc, char *argv[]) {
   // disables debugging when there's no DEBUG macro defined
 #ifndef DEBUG
@@ -36,9 +34,8 @@ int main(int argc, char *argv[]) {
      Atm, works only on dotted notation, i.e. IPv4 and DNS. IPv6 does not work if its using ':'. 
   */
 
-  if (argc != 2)
-  {
-    cerr << "usage: server <ip>:<port>\n"
+  if (argc != 2) {
+    cerr << "usage: client <ip>:<port>\n"
          << "program terminated due to wrong usage" << endl;
 
     exit(-1);
@@ -121,7 +118,7 @@ int main(int argc, char *argv[]) {
   auto result = calculateTask(strtok(buffer, "\n"));
   cout << "Calculated the result to " << result->result;
 
-#ifndef DELAY
+#ifdef DELAY
   sleep(10);
 #endif
 
